@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Contribution Tracker</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+:root{--bg:#fff;--card:#fff;--ink:#000;--mut:#000;--pri:#9cc3ff;--onpri:#000;--gold:#2f6fed;--line:#2f6fed;--bad:#2f6fed;--tint:#e3eeff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+:root{color-scheme:light}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.45 "Atkinson Hyperlegible",system-ui,sans-serif}
+.kente{height:10px;background:repeating-linear-gradient(90deg,#2f6fed 0 24px,#fff 24px 36px,#9cc3ff 36px 60px,#1646b8 60px 72px)}
+#app{max-width:640px;margin:0 auto;padding:16px 16px 40px}
+h1{font-size:1.7rem;margin:8px 0 4px}h2{font-size:1.45rem;margin:10px 0 2px}h3{margin:22px 0 8px}
+.mut,small{color:var(--mut)}small{display:block;font-size:.85rem}
+.card{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:14px;margin:10px 0;width:100%;text-align:left;color:var(--ink);font:inherit}
+.row{display:flex;align-items:center;gap:12px}.grow{flex:1;min-width:0}.grow b{display:block;overflow-wrap:anywhere}
+button.card{cursor:pointer}button.card:hover{border-color:var(--bad)}
+.ic{font-size:1.8rem}.amt{font-weight:700;white-space:nowrap}
+.empty{color:var(--mut);text-align:center}
+.btn{display:block;width:100%;min-height:54px;border:2px solid var(--line);border-radius:12px;background:var(--pri);color:var(--onpri);font:700 1.05rem inherit;font-family:inherit;cursor:pointer;padding:12px}
+.btn.alt{background:var(--tint);color:var(--ink);border:2px solid var(--line)}
+.btn.big{margin-top:18px}
+.btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}
+.back,.link{background:none;border:0;color:var(--ink);text-decoration:underline;font:700 1rem inherit;font-family:inherit;padding:10px 0;cursor:pointer}
+.link.bad{color:#000;text-decoration-color:var(--bad);margin-top:26px}
+.grid,.chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px;margin:10px 0}
+.chips{display:flex;flex-wrap:wrap}
+.chip{border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:12px 8px;font:inherit;font-family:inherit;cursor:pointer;min-height:52px}
+.chip span{display:block;font-size:1.5rem}.chip.sm{padding:8px 12px;min-height:44px}
+.chip.on{border-color:var(--bad);background:var(--pri);font-weight:700}
+label{display:block;margin:14px 0 0;font-weight:700}
+input,select{display:block;width:100%;min-height:52px;margin-top:6px;padding:10px 12px;border:2px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;font-family:inherit}
+input:focus,select:focus,button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.hero{background:var(--pri);color:#000;border-color:var(--line)}.hero small{color:#000}
+.big-n{font-size:2.4rem;font-weight:700;line-height:1.1;margin:4px 0}
+.bar{height:16px;background:#fff;border:2px solid var(--line);border-radius:8px;overflow:hidden;margin:10px 0 6px}.bar i{display:block;height:100%;background:var(--gold)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}.stats div{background:var(--card);border:2px solid var(--line);border-radius:12px;padding:10px 12px}
+.tag{font-size:.8rem;font-weight:700;padding:3px 8px;border-radius:8px;background:var(--tint)}.tag.expense{background:#9cc3ff;color:#000}.tag.pledge{background:#fff;color:#000;border:1px solid var(--line)}
+.x{background:none;border:0;color:var(--mut);font-size:1.2rem;min-width:44px;min-height:44px;cursor:pointer}
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--pri);color:#000;border:2px solid var(--line);padding:12px 18px;border-radius:12px;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.on{opacity:1}
+footer{margin-top:28px;text-align:center}
+</style></head><body>
+<div class="kente"></div><div id="app"></div><div id="toast" role="status"></div>
+<script>
+const TYPES={funeral:['🕊️','Funeral'],wedding:['💍','Wedding'],church:['⛪','Church building fund'],school:['🏫','School project'],community:['🤝','Community project'],sales:['🧾','Business daily sales'],other:['📌','Other']};
+const STAGES=['Engagement / knocking','Traditional wedding','White / church wedding','Reception'];
+const METHODS=['Cash','Mobile money','In kind'];
+const KL={payment:'Paid',pledge:'Pledge',expense:'Spent'};
+const KEY='ghc-tracker-v1';
+let S={cols:[]},view={n:'home'};
+const $=s=>document.querySelector(s);
+const fmt=n=>'GH₵ '+(Math.round(n*100)/100).toLocaleString('en-GH');
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,9);
+const today=()=>new Date().toISOString().slice(0,10);
+function load(){try{const r=localStorage.getItem(dk());if(r)S=JSON.parse(r)}catch(e){}}
+function save(){try{if(ME)localStorage.setItem(dk(),JSON.stringify(S))}catch(e){}}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),2200)}
+const find=id=>S.cols.find(c=>c.id===id);
+const stTot=e=>e.cash+e.momo+e.credit;
+
+function stats(c,stage){
+ const es=c.entries.filter(e=>!stage||e.stage===stage),pl={},pd={};
+ const sum=k=>es.filter(e=>e.kind===k).reduce((a,e)=>a+e.amount,0);
+ es.forEach(e=>{const n=e.who.trim().toLowerCase();if(e.kind==='pledge')pl[n]=(pl[n]||0)+e.amount;if(e.kind==='payment')pd[n]=(pd[n]||0)+e.amount});
+ let owed=0;for(const n in pl)owed+=Math.max(0,pl[n]-(pd[n]||0));
+ return{raised:sum('payment'),pledged:sum('pledge'),spent:sum('expense'),owed};
+}
+function salesStats(c,days){
+ const es=c.entries.filter(e=>days==null?e.date===today():(Date.now()-new Date(e.date))/864e5<days);
+ const s=es.reduce((a,e)=>a+stTot(e),0),x=es.reduce((a,e)=>a+e.exp,0);
+ return{sales:s,exp:x,profit:s-x,credit:es.reduce((a,e)=>a+e.credit,0)};
+}
+function mainAmt(c){return c.type==='sales'?c.entries.reduce((a,e)=>a+stTot(e),0):stats(c).raised}
+
+function go(n,x){view=Object.assign({n},x||{});render()}
+function render(){
+ const a=$('#app');
+ a.innerHTML=!ME?loginView():view.n==='new'?newForm():view.n==='col'?col():view.n==='add'?addForm():home();
+ window.scrollTo(0,0);
+}
+function home(){
+ return `<div class="row"><h1 class="grow">Contribution Tracker</h1><button class="back" onclick="logout()">Log out</button></div><p class="mut">Signed in as ${esc(ME)}. Clear records for funerals, weddings, projects and daily sales.</p>`+
+ (S.cols.length?S.cols.map(c=>{const t=TYPES[c.type];return `<button class="card row" onclick="go('col',{id:'${c.id}'})"><span class="ic">${t[0]}</span><span class="grow"><b>${esc(c.name)}</b><small>${t[1]}</small></span><span class="amt">${fmt(mainAmt(c))}</span></button>`}).join(''):`<div class="card empty">You have no collections yet. Tap the green button to start one.</div>`)+
+ `<button class="btn big" onclick="go('new')">＋ New collection</button><footer><small>Records are saved on this device only. Use Copy summary to share them.</small></footer>`;
+}
+function newForm(){
+ const t=view.type||'funeral';
+ return `<button class="back" onclick="go('home')">← Back</button><h2>New collection</h2><p class="mut">Choose a type</p><div class="grid">`+
+ Object.entries(TYPES).map(([k,[i,l]])=>`<button class="chip ${k===t?'on':''}" onclick="view.type='${k}';view.nm=($('#nm')||{}).value;render()"><span>${i}</span>${l}</button>`).join('')+
+ `</div><label>Name<input id="nm" placeholder="For example: Funeral of Nana Yaa" value="${esc(view.nm||'')}"></label>`+
+ (t==='sales'?'':`<label>Target amount, GH₵ (optional)<input id="tg" type="number" inputmode="decimal" min="0"></label>`)+
+ `<label>Date or deadline (optional)<input id="dl" type="date"></label><button class="btn big" onclick="create()">Save collection</button>`;
+}
+function create(){
+ const nm=($('#nm').value||'').trim();if(!nm)return toast('Enter a name first');
+ const c={id:uid(),type:view.type||'funeral',name:nm,target:parseFloat(($('#tg')||{}).value)||0,deadline:$('#dl').value||'',entries:[]};
+ S.cols.push(c);save();go('col',{id:c.id});
+}
+function col(){
+ const c=find(view.id);if(!c){view={n:'home'};return home()}
+ const t=TYPES[c.type];
+ return `<button class="back" onclick="go('home')">← Back</button><h2>${t[0]} ${esc(c.name)}</h2><p class="mut">${t[1]}${c.deadline?' · '+c.deadline:''}</p>`+
+ (c.type==='sales'?salesView(c):contribView(c))+
+ `<div class="btns"><button class="btn alt" onclick="share('${c.id}',0)">Copy summary</button><button class="btn alt" onclick="share('${c.id}',1)">Send on WhatsApp</button></div>`+
+ `<button class="link bad" onclick="delCol('${c.id}')">Delete this collection</button>`;
+}
+function contribView(c){
+ const w=c.type==='wedding',sg=w?view.stage:null,s=stats(c,sg),p=c.target&&!sg?Math.min(100,s.raised/c.target*100):null;
+ let h='';
+ if(w)h+=`<div class="chips"><button class="chip sm ${!sg?'on':''}" onclick="view.stage=null;render()">All stages</button>`+STAGES.map((x,i)=>`<button class="chip sm ${sg===x?'on':''}" onclick="view.stage=STAGES[${i}];render()">${x}</button>`).join('')+`</div>`;
+ h+=`<div class="card hero"><small>Total raised${sg?' for '+sg:''}</small><div class="big-n">${fmt(s.raised)}</div>`+(p!==null?`<div class="bar"><i style="width:${p}%"></i></div><small>${Math.round(p)}% of ${fmt(c.target)}</small>`:'')+`</div>`;
+ h+=`<div class="stats"><div><small>Pledged</small><b>${fmt(s.pledged)}</b></div><div><small>Still owed</small><b>${fmt(s.owed)}</b></div><div><small>Spent</small><b>${fmt(s.spent)}</b></div><div><small>Balance</small><b>${fmt(s.raised-s.spent)}</b></div></div>`;
+ h+=`<div class="btns"><button class="btn" onclick="go('add',{id:'${c.id}',kind:'payment'})">＋ Payment</button><button class="btn alt" onclick="go('add',{id:'${c.id}',kind:'pledge'})">＋ Pledge</button><button class="btn alt" onclick="go('add',{id:'${c.id}',kind:'expense'})">＋ Expense</button></div>`;
+ const es=c.entries.filter(e=>!sg||e.stage===sg).slice().reverse();
+ return h+`<h3>Records</h3>`+(es.length?es.map(e=>`<div class="card row"><span class="tag ${e.kind}">${KL[e.kind]}</span><span class="grow"><b>${esc(e.who)}</b><small>${e.date}${e.method?' · '+e.method:''}${e.stage?' · '+esc(e.stage):''}${e.note?' · '+esc(e.note):''}</small></span><span class="amt">${fmt(e.amount)}</span><button class="x" onclick="delEntry('${c.id}','${e.id}')" aria-label="Delete record">✕</button></div>`).join(''):`<div class="card empty">Nothing recorded yet. Add the first payment or pledge.</div>`);
+}
+function salesView(c){
+ const d=salesStats(c),w=salesStats(c,7);
+ const es=c.entries.slice().sort((a,b)=>b.date.localeCompare(a.date));
+ return `<div class="card hero"><small>Today’s sales</small><div class="big-n">${fmt(d.sales)}</div><small>Profit today: ${fmt(d.profit)}</small></div>`+
+ `<div class="stats"><div><small>Last 7 days sales</small><b>${fmt(w.sales)}</b></div><div><small>Last 7 days profit</small><b>${fmt(w.profit)}</b></div><div><small>Expenses (7 days)</small><b>${fmt(w.exp)}</b></div><div><small>Credit owed to you</small><b>${fmt(c.entries.reduce((a,e)=>a+e.credit,0))}</b></div></div>`+
+ `<button class="btn big" onclick="go('add',{id:'${c.id}',kind:'sale'})">＋ Add a day’s record</button><h3>Daily records</h3>`+
+ (es.length?es.map(e=>`<div class="card row"><span class="grow"><b>${e.date}</b><small>Cash ${fmt(e.cash)} · MoMo ${fmt(e.momo)} · Credit ${fmt(e.credit)}</small><small>Expenses ${fmt(e.exp)}${e.note?' · '+esc(e.note):''}</small></span><span class="amt">${fmt(stTot(e)-e.exp)}</span><button class="x" onclick="delEntry('${c.id}','${e.id}')" aria-label="Delete record">✕</button></div>`).join(''):`<div class="card empty">No daily records yet.</div>`);
+}
+function addForm(){
+ const c=find(view.id),k=view.kind;
+ let h=`<button class="back" onclick="go('col',{id:'${c.id}'})">← Back</button>`;
+ if(k==='sale')return h+`<h2>Daily sales record</h2><label>Date<input id="dt" type="date" value="${today()}"></label><label>Cash sales, GH₵<input id="ca" type="number" inputmode="decimal" min="0"></label><label>Mobile money sales, GH₵<input id="mo" type="number" inputmode="decimal" min="0"></label><label>Credit sales (owed to you), GH₵<input id="cr" type="number" inputmode="decimal" min="0"></label><label>Expenses, GH₵<input id="ex" type="number" inputmode="decimal" min="0"></label><label>Note (optional)<input id="nt"></label><button class="btn big" onclick="saveEntry()">Save record</button>`;
+ const title={payment:'Record a payment',pledge:'Record a pledge',expense:'Record an expense'}[k];
+ h+=`<h2>${title}</h2><label>${k==='expense'?'Spent on':'Name of person or group'}<input id="wh" placeholder="${k==='expense'?'For example: Cement':'For example: Auntie Ama'}"></label><label>Amount, GH₵<input id="am" type="number" inputmode="decimal" min="0"></label>`;
+ if(k!=='pledge')h+=`<label>How was it paid?<select id="me">${METHODS.map(m=>`<option>${m}</option>`).join('')}</select></label>`;
+ if(c.type==='wedding')h+=`<label>Wedding stage<select id="sg">${STAGES.map(m=>`<option${m===view.stage?' selected':''}>${m}</option>`).join('')}</select></label>`;
+ return h+`<label>Date<input id="dt" type="date" value="${today()}"></label><label>Note (optional)<input id="nt"></label><button class="btn big" onclick="saveEntry()">Save</button>`;
+}
+function saveEntry(){
+ const c=find(view.id),g=i=>(($('#'+i)||{}).value||'');
+ if(view.kind==='sale'){
+  const n=i=>parseFloat(g(i))||0,e={id:uid(),date:g('dt')||today(),cash:n('ca'),momo:n('mo'),credit:n('cr'),exp:n('ex'),note:g('nt')};
+  if(!(e.cash||e.momo||e.credit||e.exp))return toast('Enter at least one amount');
+  c.entries.push(e);
+ }else{
+  const amt=parseFloat(g('am')),who=g('wh').trim();
+  if(!who||!(amt>0))return toast('Enter a name and an amount');
+  c.entries.push({id:uid(),kind:view.kind,who,amount:amt,method:view.kind==='pledge'?'':g('me'),stage:c.type==='wedding'?g('sg'):'',date:g('dt')||today(),note:g('nt')});
+ }
+ save();go('col',{id:c.id});toast('Saved');
+}
+function delEntry(cid,eid){if(!confirm('Delete this record?'))return;const c=find(cid);c.entries=c.entries.filter(e=>e.id!==eid);save();render()}
+function delCol(id){if(!confirm('Delete this whole collection and all its records?'))return;S.cols=S.cols.filter(c=>c.id!==id);save();go('home')}
+function summary(c){
+ const L=[`${TYPES[c.type][1]}: ${c.name}`];
+ if(c.type==='sales'){
+  const w=salesStats(c,7);L.push('Last 7 days',`Sales: ${fmt(w.sales)}`,`Expenses: ${fmt(w.exp)}`,`Profit: ${fmt(w.profit)}`);
+ }else{
+  const s=stats(c);L.push(`Raised: ${fmt(s.raised)}`+(c.target?` of ${fmt(c.target)}`:''),`Pledged: ${fmt(s.pledged)} | Still owed: ${fmt(s.owed)}`,`Spent: ${fmt(s.spent)} | Balance: ${fmt(s.raised-s.spent)}`,'','Payments:');
+  c.entries.filter(e=>e.kind==='payment').forEach(e=>L.push(`- ${e.who}: ${fmt(e.amount)}`));
+  const ex=c.entries.filter(e=>e.kind==='expense');
+  if(ex.length){L.push('','Expenses:');ex.forEach(e=>L.push(`- ${e.who}: ${fmt(e.amount)}`))}
+ }
+ return L.join('\n');
+}
+function fallbackCopy(t){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');toast('Summary copied')}catch(e){toast('Could not copy')}a.remove()}
+function copyText(t){try{navigator.clipboard.writeText(t).then(()=>toast('Summary copied'),()=>fallbackCopy(t))}catch(e){fallbackCopy(t)}}
+function share(id,wa){
+ const t=summary(find(id));
+ if(wa){try{window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank')}catch(e){}copyText(t)}else copyText(t);
+}
+let ME=null;
+const UK='ghc-users-v1';
+const dk=()=>KEY+':'+ME;
+const hex=b=>Array.from(new Uint8Array(b),x=>x.toString(16).padStart(2,'0')).join('');
+function users(){try{return JSON.parse(localStorage.getItem(UK))||{}}catch(e){return{}}}
+async function hashPw(pw,salt){const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveBits']);return hex(await crypto.subtle.deriveBits({name:'PBKDF2',salt:new TextEncoder().encode(salt),iterations:100000,hash:'SHA-256'},k,256))}
+function loginView(){
+ const su=view.mode==='signup';
+ return `<h1>Contribution Tracker</h1><p class="mut">${su?'Create an account to keep your records private.':'Log in to open your records.'}</p><div class="chips"><button class="chip sm ${!su?'on':''}" onclick="view.mode='login';render()">Log in</button><button class="chip sm ${su?'on':''}" onclick="view.mode='signup';render()">Create account</button></div><label>Username<input id="lu" autocomplete="username" autocapitalize="none"></label><label>Password<input id="lp" type="password" autocomplete="${su?'new-password':'current-password'}"></label>${su?'<label>Confirm password<input id="lc" type="password" autocomplete="new-password"></label>':''}<label class="row" style="font-weight:400"><input type="checkbox" style="width:28px;min-height:28px;margin:0" onchange="['lp','lc'].forEach(i=>{const e=$('#'+i);if(e)e.type=this.checked?'text':'password'})"> Show password</label><button class="btn big" onclick="${su?'signup()':'login()'}">${su?'Create account':'Log in'}</button><footer><small>Accounts are stored on this device only. A forgotten password cannot be recovered, so keep it somewhere safe.</small></footer>`;
+}
+async function signup(){
+ const u=($('#lu').value||'').trim().toLowerCase(),p=$('#lp').value||'',c=$('#lc').value;
+ if(u.length<3)return toast('Username needs at least 3 characters');
+ if(p.length<6)return toast('Password needs at least 6 characters');
+ if(p!==c)return toast('The two passwords do not match');
+ if(!window.crypto||!crypto.subtle)return toast('This browser cannot create accounts');
+ const us=users();if(us[u])return toast('That username is already taken on this device');
+ const salt=hex(crypto.getRandomValues(new Uint8Array(16)));
+ us[u]={salt,hash:await hashPw(p,salt)};
+ try{localStorage.setItem(UK,JSON.stringify(us));const old=localStorage.getItem(KEY);if(old&&Object.keys(us).length===1){localStorage.setItem(KEY+':'+u,old);localStorage.removeItem(KEY)}}catch(e){return toast('Could not save the account')}
+ enter(u);
+}
+async function login(){
+ const u=($('#lu').value||'').trim().toLowerCase(),p=$('#lp').value||'',r=users()[u];
+ if(!r||!window.crypto||!crypto.subtle||(await hashPw(p,r.salt))!==r.hash)return toast('Wrong username or password');
+ enter(u);
+}
+function enter(u){ME=u;S={cols:[]};load();go('home')}
+function logout(){ME=null;S={cols:[]};view={n:'login',mode:'login'};render()}
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&!ME){const b=$('.btn.big');if(b)b.click()}});
+view={n:'login',mode:Object.keys(users()).length?'login':'signup'};render();
+</script></body></html>
