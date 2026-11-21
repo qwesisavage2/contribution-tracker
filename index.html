@@ -42,8 +42,10 @@ input:focus,select:focus,button:focus-visible{outline:3px solid var(--gold);outl
 #toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--pri);color:#000;border:2px solid var(--line);padding:12px 18px;border-radius:12px;opacity:0;pointer-events:none;transition:opacity .2s}
 #toast.on{opacity:1}
 footer{margin-top:28px;text-align:center}
+#print{display:none}
+@media print{body{background:#fff}#app,.kente,#toast{display:none!important}#print{display:block;color:#000}#print h1{font-size:22pt;margin:0 0 4px}#print h2{font-size:15pt;margin:18px 0 6px;border-bottom:2px solid #000}#print table{width:100%;border-collapse:collapse;font-size:10pt;margin:6px 0}#print th,#print td{border:1px solid #000;padding:4px 6px;text-align:left}#print .r{text-align:right}#print .tot{font-weight:700}#print .sum{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;margin:8px 0}}
 </style></head><body>
-<div class="kente"></div><div id="app"></div><div id="toast" role="status"></div>
+<div class="kente"></div><div id="app"></div><div id="toast" role="status"></div><div id="print"></div>
 <script>
 const TYPES={funeral:['🕊️','Funeral'],wedding:['💍','Wedding'],church:['⛪','Church building fund'],school:['🏫','School project'],community:['🤝','Community project'],sales:['🧾','Business daily sales'],other:['📌','Other']};
 const STAGES=['Engagement / knocking','Traditional wedding','White / church wedding','Reception'];
@@ -80,10 +82,10 @@ function go(n,x){view=Object.assign({n},x||{});render()}
 function render(){
  const a=$('#app');
  a.innerHTML=!ME?loginView():view.n==='new'?newForm():view.n==='col'?col():view.n==='add'?addForm():home();
- window.scrollTo(0,0);
+ if(ME&&view.n==='add'&&view.eid)fillEdit();if(ME&&view.n==='new'&&view.edit)fillCol();window.scrollTo(0,0);
 }
 function home(){
- return `<div class="row"><h1 class="grow">Contribution Tracker</h1><button class="back" onclick="logout()">Log out</button></div><p class="mut">Signed in as ${esc(ME)}. Clear records for funerals, weddings, projects and daily sales.</p>`+
+ return `<div class="row"><h1 class="grow">${esc(hubName())}</h1><button class="back" onclick="logout()">Log out</button></div><p class="mut">Welcome to your hub. Clear records for funerals, weddings, projects and daily sales.</p>${overview()}`+
  (S.cols.length?S.cols.map(c=>{const t=TYPES[c.type];return `<button class="card row" onclick="go('col',{id:'${c.id}'})"><span class="ic">${t[0]}</span><span class="grow"><b>${esc(c.name)}</b><small>${t[1]}</small></span><span class="amt">${fmt(mainAmt(c))}</span></button>`}).join(''):`<div class="card empty">You have no collections yet. Tap the green button to start one.</div>`)+
  `<button class="btn big" onclick="go('new')">＋ New collection</button><footer><small>Records are saved on this device only. Use Copy summary to share them.</small></footer>`;
 }
@@ -105,8 +107,8 @@ function col(){
  const t=TYPES[c.type];
  return `<button class="back" onclick="go('home')">← Back</button><h2>${t[0]} ${esc(c.name)}</h2><p class="mut">${t[1]}${c.deadline?' · '+c.deadline:''}</p>`+
  (c.type==='sales'?salesView(c):contribView(c))+
- `<div class="btns"><button class="btn alt" onclick="share('${c.id}',0)">Copy summary</button><button class="btn alt" onclick="share('${c.id}',1)">Send on WhatsApp</button></div>`+
- `<button class="link bad" onclick="delCol('${c.id}')">Delete this collection</button>`;
+ `<div class="btns"><button class="btn alt" onclick="share('${c.id}',0)">Copy summary</button><button class="btn alt" onclick="share('${c.id}',1)">Send on WhatsApp</button><button class="btn alt" onclick="printReport('${c.id}')">Print report</button></div>`+
+ `<button class="link" onclick="go('new',{edit:'${c.id}',type:'${c.type}'})">Edit name and target</button><br><button class="link bad" onclick="delCol('${c.id}')">Delete this collection</button>`;
 }
 function contribView(c){
  const w=c.type==='wedding',sg=w?view.stage:null,s=stats(c,sg),p=c.target&&!sg?Math.min(100,s.raised/c.target*100):null;
@@ -116,7 +118,7 @@ function contribView(c){
  h+=`<div class="stats"><div><small>Pledged</small><b>${fmt(s.pledged)}</b></div><div><small>Still owed</small><b>${fmt(s.owed)}</b></div><div><small>Spent</small><b>${fmt(s.spent)}</b></div><div><small>Balance</small><b>${fmt(s.raised-s.spent)}</b></div></div>`;
  h+=`<div class="btns"><button class="btn" onclick="go('add',{id:'${c.id}',kind:'payment'})">＋ Payment</button><button class="btn alt" onclick="go('add',{id:'${c.id}',kind:'pledge'})">＋ Pledge</button><button class="btn alt" onclick="go('add',{id:'${c.id}',kind:'expense'})">＋ Expense</button></div>`;
  const es=c.entries.filter(e=>!sg||e.stage===sg).slice().reverse();
- return h+`<h3>Records</h3>`+(es.length?es.map(e=>`<div class="card row"><span class="tag ${e.kind}">${KL[e.kind]}</span><span class="grow"><b>${esc(e.who)}</b><small>${e.date}${e.method?' · '+e.method:''}${e.stage?' · '+esc(e.stage):''}${e.note?' · '+esc(e.note):''}</small></span><span class="amt">${fmt(e.amount)}</span><button class="x" onclick="delEntry('${c.id}','${e.id}')" aria-label="Delete record">✕</button></div>`).join(''):`<div class="card empty">Nothing recorded yet. Add the first payment or pledge.</div>`);
+ return h+`<h3>Records</h3>`+(es.length?es.map(e=>`<div class="card row"><span class="tag ${e.kind}">${KL[e.kind]}</span><span class="grow"><b>${esc(e.who)}</b><small>${e.date}${e.method?' · '+e.method:''}${e.stage?' · '+esc(e.stage):''}${e.note?' · '+esc(e.note):''}</small></span><span class="amt">${fmt(e.amount)}</span><button class="x" onclick="go('add',{id:'${c.id}',kind:'${e.kind}',eid:'${e.id}'})" aria-label="Edit record">✎</button><button class="x" onclick="delEntry('${c.id}','${e.id}')" aria-label="Delete record">✕</button></div>`).join(''):`<div class="card empty">Nothing recorded yet. Add the first payment or pledge.</div>`);
 }
 function salesView(c){
  const d=salesStats(c),w=salesStats(c,7);
@@ -124,7 +126,7 @@ function salesView(c){
  return `<div class="card hero"><small>Today’s sales</small><div class="big-n">${fmt(d.sales)}</div><small>Profit today: ${fmt(d.profit)}</small></div>`+
  `<div class="stats"><div><small>Last 7 days sales</small><b>${fmt(w.sales)}</b></div><div><small>Last 7 days profit</small><b>${fmt(w.profit)}</b></div><div><small>Expenses (7 days)</small><b>${fmt(w.exp)}</b></div><div><small>Credit owed to you</small><b>${fmt(c.entries.reduce((a,e)=>a+e.credit,0))}</b></div></div>`+
  `<button class="btn big" onclick="go('add',{id:'${c.id}',kind:'sale'})">＋ Add a day’s record</button><h3>Daily records</h3>`+
- (es.length?es.map(e=>`<div class="card row"><span class="grow"><b>${e.date}</b><small>Cash ${fmt(e.cash)} · MoMo ${fmt(e.momo)} · Credit ${fmt(e.credit)}</small><small>Expenses ${fmt(e.exp)}${e.note?' · '+esc(e.note):''}</small></span><span class="amt">${fmt(stTot(e)-e.exp)}</span><button class="x" onclick="delEntry('${c.id}','${e.id}')" aria-label="Delete record">✕</button></div>`).join(''):`<div class="card empty">No daily records yet.</div>`);
+ (es.length?es.map(e=>`<div class="card row"><span class="grow"><b>${e.date}</b><small>Cash ${fmt(e.cash)} · MoMo ${fmt(e.momo)} · Credit ${fmt(e.credit)}</small><small>Expenses ${fmt(e.exp)}${e.note?' · '+esc(e.note):''}</small></span><span class="amt">${fmt(stTot(e)-e.exp)}</span><button class="x" onclick="go('add',{id:'${c.id}',kind:'sale',eid:'${e.id}'})" aria-label="Edit record">✎</button><button class="x" onclick="delEntry('${c.id}','${e.id}')" aria-label="Delete record">✕</button></div>`).join(''):`<div class="card empty">No daily records yet.</div>`);
 }
 function addForm(){
  const c=find(view.id),k=view.kind;
@@ -141,13 +143,13 @@ function saveEntry(){
  if(view.kind==='sale'){
   const n=i=>parseFloat(g(i))||0,e={id:uid(),date:g('dt')||today(),cash:n('ca'),momo:n('mo'),credit:n('cr'),exp:n('ex'),note:g('nt')};
   if(!(e.cash||e.momo||e.credit||e.exp))return toast('Enter at least one amount');
-  c.entries.push(e);
+  put(c,e);
  }else{
   const amt=parseFloat(g('am')),who=g('wh').trim();
   if(!who||!(amt>0))return toast('Enter a name and an amount');
-  c.entries.push({id:uid(),kind:view.kind,who,amount:amt,method:view.kind==='pledge'?'':g('me'),stage:c.type==='wedding'?g('sg'):'',date:g('dt')||today(),note:g('nt')});
+  put(c,{id:uid(),kind:view.kind,who,amount:amt,method:view.kind==='pledge'?'':g('me'),stage:c.type==='wedding'?g('sg'):'',date:g('dt')||today(),note:g('nt')});
  }
- save();go('col',{id:c.id});toast('Saved');
+ save();const m=view.eid?'Changes saved':'Saved';go('col',{id:c.id});toast(m);
 }
 function delEntry(cid,eid){if(!confirm('Delete this record?'))return;const c=find(cid);c.entries=c.entries.filter(e=>e.id!==eid);save();render()}
 function delCol(id){if(!confirm('Delete this whole collection and all its records?'))return;S.cols=S.cols.filter(c=>c.id!==id);save();go('home')}
@@ -168,6 +170,53 @@ function copyText(t){try{navigator.clipboard.writeText(t).then(()=>toast('Summar
 function share(id,wa){
  const t=summary(find(id));
  if(wa){try{window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank')}catch(e){}copyText(t)}else copyText(t);
+}
+function put(c,e){if(view.eid){const i=c.entries.findIndex(x=>x.id===view.eid);if(i>-1){e.id=view.eid;c.entries[i]=e;return}}c.entries.push(e)}
+function fillEdit(){
+ const c=find(view.id),e=c&&c.entries.find(x=>x.id===view.eid);if(!e)return;
+ const set=(i,v)=>{const el=$('#'+i);if(el&&v!=null&&v!=='')el.value=v};
+ if(view.kind==='sale'){set('dt',e.date);set('ca',e.cash||'');set('mo',e.momo||'');set('cr',e.credit||'');set('ex',e.exp||'');set('nt',e.note)}
+ else{set('wh',e.who);set('am',e.amount);set('me',e.method);set('sg',e.stage);set('dt',e.date);set('nt',e.note)}
+ const b=$('.btn.big'),h=$('h2');if(b)b.textContent='Save changes';if(h)h.textContent='Edit record';
+}
+function fillCol(){
+ const c=find(view.edit);if(!c)return;
+ const g=$('.grid'),h=$('h2');if(g)g.remove();if(h){const p=h.nextElementSibling;if(p&&p.classList.contains('mut'))p.remove();h.textContent='Edit details'}
+ const set=(i,v)=>{const el=$('#'+i);if(el&&v)el.value=v};
+ set('nm',c.name);set('tg',c.target);set('dl',c.deadline);
+ const b=$('.btn.big');if(b){b.textContent='Save changes';b.setAttribute('onclick','saveCol()')}
+}
+function saveCol(){
+ const c=find(view.edit),nm=($('#nm').value||'').trim();if(!nm)return toast('Enter a name first');
+ c.name=nm;c.deadline=$('#dl').value||'';if($('#tg'))c.target=parseFloat($('#tg').value)||0;
+ save();go('col',{id:c.id});toast('Changes saved');
+}
+const hubName=()=>ME.charAt(0).toUpperCase()+ME.slice(1)+'’s Hub';
+function totals(){let r=0,sp=0,sa=0,sx=0,ow=0;S.cols.forEach(c=>{if(c.type==='sales'){c.entries.forEach(e=>{sa+=stTot(e);sx+=e.exp})}else{const s=stats(c);r+=s.raised;sp+=s.spent;ow+=s.owed}});return{r,sp,sa,sx,ow}}
+function overview(){
+ if(!S.cols.length)return'';const t=totals();
+ return `<div class="card hero"><small>Total money raised in all collections</small><div class="big-n">${fmt(t.r)}</div></div><div class="stats"><div><small>Total spent</small><b>${fmt(t.sp)}</b></div><div><small>Balance</small><b>${fmt(t.r-t.sp)}</b></div><div><small>Still owed (pledges)</small><b>${fmt(t.ow)}</b></div><div><small>Business sales</small><b>${fmt(t.sa)}</b></div></div><div class="btns"><button class="btn alt" onclick="printReport()">Print full report</button></div>`;
+}
+function repCol(c){
+ let h=`<section><h2>${esc(TYPES[c.type][1])}: ${esc(c.name)}</h2>`;
+ const es=c.entries.slice().sort((a,b)=>a.date.localeCompare(b.date));
+ if(c.type==='sales'){
+  let a=0,x=0;
+  h+=`<table><tr><th>Date</th><th class="r">Cash</th><th class="r">Mobile money</th><th class="r">Credit</th><th class="r">Expenses</th><th class="r">Profit</th></tr>`+es.map(e=>{a+=stTot(e);x+=e.exp;return `<tr><td>${e.date}</td><td class="r">${fmt(e.cash)}</td><td class="r">${fmt(e.momo)}</td><td class="r">${fmt(e.credit)}</td><td class="r">${fmt(e.exp)}</td><td class="r">${fmt(stTot(e)-e.exp)}</td></tr>`}).join('')+`<tr class="tot"><td colspan="4">Total sales: ${fmt(a)}</td><td class="r">${fmt(x)}</td><td class="r">${fmt(a-x)}</td></tr></table>`;
+ }else{
+  const s=stats(c);
+  h+=`<div class="sum"><div>Total raised: <b>${fmt(s.raised)}</b></div><div>Total pledged: <b>${fmt(s.pledged)}</b></div><div>Total spent: <b>${fmt(s.spent)}</b></div><div>Balance: <b>${fmt(s.raised-s.spent)}</b></div><div>Still owed: <b>${fmt(s.owed)}</b></div>${c.target?`<div>Target: <b>${fmt(c.target)}</b></div>`:''}</div>`;
+  h+=`<table><tr><th>Date</th><th>Type</th><th>Name or item</th><th>Method</th><th>Stage</th><th class="r">Amount</th></tr>`+(es.map(e=>`<tr><td>${e.date}</td><td>${KL[e.kind]}</td><td>${esc(e.who)}${e.note?' ('+esc(e.note)+')':''}</td><td>${esc(e.method||'')}</td><td>${esc(e.stage||'')}</td><td class="r">${fmt(e.amount)}</td></tr>`).join('')||'<tr><td colspan="6">No records yet</td></tr>')+`</table>`;
+ }
+ return h+'</section>';
+}
+function printReport(id){
+ const list=id?[find(id)]:S.cols;
+ let h=`<h1>${esc(hubName())}</h1><p>Report printed on ${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</p>`;
+ if(!id){const t=totals();h+=`<h2>Overall totals</h2><div class="sum"><div>Total money raised: <b>${fmt(t.r)}</b></div><div>Total spent: <b>${fmt(t.sp)}</b></div><div>Balance: <b>${fmt(t.r-t.sp)}</b></div><div>Still owed: <b>${fmt(t.ow)}</b></div><div>Business sales: <b>${fmt(t.sa)}</b></div><div>Business expenses: <b>${fmt(t.sx)}</b></div></div>`}
+ h+=list.map(repCol).join('');
+ $('#print').innerHTML=h;
+ try{window.print()}catch(e){toast('Printing is not available here')}
 }
 let ME=null;
 const UK='ghc-users-v1';
